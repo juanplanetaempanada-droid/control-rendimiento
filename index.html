@@ -319,14 +319,31 @@
 <div class="toast" id="toast"></div>
 
 <script>
+/* ========= TABS (activadas primero, no dependen de Supabase) ========= */
+document.querySelectorAll('nav.tabs button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('section.panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-'+btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'historial' && typeof cargarHistorial === 'function') cargarHistorial();
+  });
+});
+
 /* ========= CONFIG SUPABASE ========= */
-const SUPABASE_URL = 'TU_SUPABASE_URL';
-const SUPABASE_ANON_KEY = 'TU_SUPABASE_ANON_KEY';
+const SUPABASE_URL = 'https://lnksqgmxoylqqfxldwqy.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxua3NxZ214b3lscXFmeGxkd3F5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU3Nzc2MjAsImV4cCI6MjEwMTM1MzYyMH0.dOfvafiVBOENT9B8oYUhcLJeSxfDW7yd5bUxXzklCJg';
 
 let supabase = null;
-if (SUPABASE_URL.startsWith('http') && SUPABASE_ANON_KEY.length > 10) {
-  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-} else {
+try {
+  if (SUPABASE_URL.startsWith('http') && SUPABASE_ANON_KEY.length > 10 && window.supabase) {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  } else {
+    document.getElementById('setupBanner').style.display = 'block';
+    if (!window.supabase) console.error('La librería de Supabase no cargó (revisá la conexión a internet o algún bloqueador).');
+  }
+} catch(e){
+  console.error('Error inicializando Supabase:', e);
   document.getElementById('setupBanner').style.display = 'block';
 }
 
@@ -368,17 +385,6 @@ function calcularMetricas(kgIngreso, kgEgreso, horaInicio, horaFin){
 /* ========= STATE ========= */
 let productos = [];
 let registrosHoy = [];
-
-/* ========= TABS ========= */
-document.querySelectorAll('nav.tabs button').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
-    document.querySelectorAll('section.panel').forEach(p=>p.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('panel-'+btn.dataset.tab).classList.add('active');
-    if (btn.dataset.tab === 'historial') cargarHistorial();
-  });
-});
 
 /* ========= PRODUCTOS ========= */
 async function loadProductos(){
