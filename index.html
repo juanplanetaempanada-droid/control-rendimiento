@@ -334,10 +334,10 @@ document.querySelectorAll('nav.tabs button').forEach(btn=>{
 const SUPABASE_URL = 'https://lnksqgmxoylqqfxldwqy.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxua3NxZ214b3lscXFmeGxkd3F5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU3Nzc2MjAsImV4cCI6MjEwMTM1MzYyMH0.dOfvafiVBOENT9B8oYUhcLJeSxfDW7yd5bUxXzklCJg';
 
-let supabase = null;
+let sb = null;
 try {
   if (SUPABASE_URL.startsWith('http') && SUPABASE_ANON_KEY.length > 10 && window.supabase) {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   } else {
     document.getElementById('setupBanner').style.display = 'block';
     if (!window.supabase) console.error('La librería de Supabase no cargó (revisá la conexión a internet o algún bloqueador).');
@@ -388,8 +388,8 @@ let registrosHoy = [];
 
 /* ========= PRODUCTOS ========= */
 async function loadProductos(){
-  if(!supabase) return;
-  const { data, error } = await supabase.from('productos_procesamiento').select('*').order('nombre');
+  if(!sb) return;
+  const { data, error } = await sb.from('productos_procesamiento').select('*').order('nombre');
   if (error){ console.error(error); return; }
   productos = data || [];
   renderProductSelects();
@@ -421,8 +421,8 @@ function renderProductList(){
 document.getElementById('btnAgregarProducto').addEventListener('click', async ()=>{
   const nombre = document.getElementById('p-nombre').value.trim();
   if (!nombre){ showToast('Escribí un nombre de producto'); return; }
-  if (!supabase){ showToast('Falta configurar Supabase'); return; }
-  const { error } = await supabase.from('productos_procesamiento').insert({ nombre, activo: true });
+  if (!sb){ showToast('Falta configurar Supabase'); return; }
+  const { error } = await sb.from('productos_procesamiento').insert({ nombre, activo: true });
   if (error){ console.error(error); showToast('Error al guardar'); return; }
   document.getElementById('p-nombre').value = '';
   showToast('Producto agregado');
@@ -430,14 +430,14 @@ document.getElementById('btnAgregarProducto').addEventListener('click', async ()
 });
 
 async function toggleProducto(id, nuevoActivo){
-  const { error } = await supabase.from('productos_procesamiento').update({ activo: nuevoActivo }).eq('id', id);
+  const { error } = await sb.from('productos_procesamiento').update({ activo: nuevoActivo }).eq('id', id);
   if (error){ console.error(error); return; }
   loadProductos();
 }
 
 async function borrarProducto(id){
   if (!confirm('¿Borrar este producto? Esto no borra los registros ya guardados.')) return;
-  const { error } = await supabase.from('productos_procesamiento').delete().eq('id', id);
+  const { error } = await sb.from('productos_procesamiento').delete().eq('id', id);
   if (error){ console.error(error); showToast('No se pudo borrar (¿tiene registros asociados?)'); return; }
   loadProductos();
 }
@@ -473,7 +473,7 @@ function actualizarPreview(){
 });
 
 document.getElementById('btnGuardar').addEventListener('click', async ()=>{
-  if (!supabase){ showToast('Falta configurar Supabase'); return; }
+  if (!sb){ showToast('Falta configurar Supabase'); return; }
   const producto_id = document.getElementById('f-producto').value;
   const fecha = document.getElementById('f-fecha').value;
   const hora_inicio = document.getElementById('f-hora-inicio').value;
@@ -487,7 +487,7 @@ document.getElementById('btnGuardar').addEventListener('click', async ()=>{
   if (isNaN(kg_ingreso) || isNaN(kg_egreso)){ showToast('Completá los kg de ingreso y egreso'); return; }
   if (kg_egreso > kg_ingreso){ showToast('El kg de egreso no puede superar al de ingreso'); return; }
 
-  const { error } = await supabase.from('registros_procesamiento').insert({
+  const { error } = await sb.from('registros_procesamiento').insert({
     producto_id, fecha, hora_inicio, hora_fin, kg_ingreso, kg_egreso, observaciones: observaciones || null
   });
   if (error){ console.error(error); showToast('Error al guardar el registro'); return; }
@@ -503,9 +503,9 @@ document.getElementById('btnGuardar').addEventListener('click', async ()=>{
 });
 
 async function cargarRegistrosHoy(){
-  if (!supabase) return;
+  if (!sb) return;
   const hoy = hoyLocal();
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('registros_procesamiento')
     .select('*, productos_procesamiento(nombre)')
     .eq('fecha', hoy)
@@ -541,12 +541,12 @@ document.getElementById('btnFiltrar').addEventListener('click', cargarHistorial)
 document.getElementById('btnImprimir').addEventListener('click', ()=>window.print());
 
 async function cargarHistorial(){
-  if (!supabase) return;
+  if (!sb) return;
   const desde = document.getElementById('h-desde').value;
   const hasta = document.getElementById('h-hasta').value;
   const productoId = document.getElementById('h-producto').value;
 
-  let query = supabase.from('registros_procesamiento')
+  let query = sb.from('registros_procesamiento')
     .select('*, productos_procesamiento(nombre)')
     .gte('fecha', desde).lte('fecha', hasta)
     .order('fecha').order('hora_inicio');
@@ -602,14 +602,14 @@ function renderReporte(rows, desde, hasta, productoId){
 
 async function borrarRegistro(id){
   if (!confirm('¿Borrar este registro?')) return;
-  const { error } = await supabase.from('registros_procesamiento').delete().eq('id', id);
+  const { error } = await sb.from('registros_procesamiento').delete().eq('id', id);
   if (error){ console.error(error); showToast('No se pudo borrar'); return; }
   cargarHistorial();
   cargarRegistrosHoy();
 }
 
 /* ========= INIT ========= */
-if (supabase){
+if (sb){
   loadProductos();
   cargarRegistrosHoy();
 }
