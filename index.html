@@ -120,7 +120,7 @@
   .prod-row .pname.inactivo{color:var(--ink-muted);text-decoration:line-through;}
   .prod-actions{display:flex;gap:6px;}
 
-  .filters{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end;}
+  .filters{display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:end;}
   @media(max-width:640px){.filters{grid-template-columns:1fr 1fr;}}
 
   table.report{width:100%;border-collapse:collapse;font-size:13px;}
@@ -168,16 +168,22 @@
   <nav class="tabs no-print">
     <button data-tab="cargar" class="active">Cargar registro</button>
     <button data-tab="historial">Historial e informe</button>
-    <button data-tab="productos">Productos</button>
+    <button data-tab="productos">Productos y operarios</button>
   </nav>
 
   <!-- ===== TAB: CARGAR REGISTRO ===== -->
   <section class="panel active" id="panel-cargar">
     <div class="card">
       <h2>Nuevo registro</h2>
-      <div class="field">
-        <label>Producto</label>
-        <select id="f-producto"></select>
+      <div class="row2">
+        <div class="field">
+          <label>Producto</label>
+          <select id="f-producto"></select>
+        </div>
+        <div class="field">
+          <label>Operario</label>
+          <select id="f-operario"></select>
+        </div>
       </div>
       <div class="row2">
         <div class="field">
@@ -261,6 +267,10 @@
           <select id="h-producto"><option value="">Todos</option></select>
         </div>
         <div class="field">
+          <label>Operario</label>
+          <select id="h-operario"><option value="">Todos</option></select>
+        </div>
+        <div class="field">
           <button class="btn btn-ghost" id="btnFiltrar" style="white-space:nowrap;">Aplicar</button>
         </div>
       </div>
@@ -278,6 +288,7 @@
             <tr>
               <th class="txt">Fecha</th>
               <th class="txt">Producto</th>
+              <th class="txt">Operario</th>
               <th>Duración</th>
               <th>Kg ingreso</th>
               <th>Kg egreso</th>
@@ -287,7 +298,7 @@
             </tr>
           </thead>
           <tbody id="reportBody">
-            <tr><td colspan="8" class="empty txt">Sin registros para el período seleccionado.</td></tr>
+            <tr><td colspan="9" class="empty txt">Sin registros para el período seleccionado.</td></tr>
           </tbody>
           <tfoot id="reportFoot"></tfoot>
         </table>
@@ -311,6 +322,19 @@
     <div class="card">
       <h2>Productos cargados</h2>
       <div id="prodList"><div class="empty">Todavía no cargaste productos.</div></div>
+    </div>
+
+    <div class="card">
+      <h2>Agregar operario</h2>
+      <div class="field">
+        <label>Nombre del operario</label>
+        <input type="text" id="op-nombre" placeholder="Ej: Juan Pérez">
+      </div>
+      <button class="btn btn-primary" id="btnAgregarOperario">Agregar</button>
+    </div>
+    <div class="card">
+      <h2>Operarios cargados</h2>
+      <div id="opList"><div class="empty">Todavía no cargaste operarios.</div></div>
     </div>
   </section>
 
@@ -384,6 +408,7 @@ function calcularMetricas(kgIngreso, kgEgreso, horaInicio, horaFin){
 
 /* ========= STATE ========= */
 let productos = [];
+let operarios = [];
 let registrosHoy = [];
 
 /* ========= PRODUCTOS ========= */
@@ -442,6 +467,62 @@ async function borrarProducto(id){
   loadProductos();
 }
 
+/* ========= OPERARIOS ========= */
+async function loadOperarios(){
+  if(!sb) return;
+  const { data, error } = await sb.from('operarios_procesamiento').select('*').order('nombre');
+  if (error){ console.error(error); return; }
+  operarios = data || [];
+  renderOperarioSelects();
+  renderOperarioList();
+}
+
+function renderOperarioSelects(){
+  const activos = operarios.filter(o=>o.activo);
+  const selCargar = document.getElementById('f-operario');
+  selCargar.innerHTML = activos.map(o=>`<option value="${o.id}">${o.nombre}</option>`).join('') || '<option value="">Sin operarios activos</option>';
+  const selHist = document.getElementById('h-operario');
+  selHist.innerHTML = '<option value="">Todos</option>' + operarios.map(o=>`<option value="${o.id}">${o.nombre}</option>`).join('');
+}
+
+function renderOperarioList(){
+  const box = document.getElementById('opList');
+  if (!operarios.length){ box.innerHTML = '<div class="empty">Todavía no cargaste operarios.</div>'; return; }
+  box.innerHTML = operarios.map(o=>`
+    <div class="prod-row">
+      <div class="pname ${o.activo?'':'inactivo'}">${o.nombre}</div>
+      <div class="prod-actions">
+        <button class="btn btn-ghost btn-small" onclick="toggleOperario('${o.id}', ${!o.activo})">${o.activo?'Desactivar':'Activar'}</button>
+        <button class="btn btn-danger btn-small" onclick="borrarOperario('${o.id}')">Borrar</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+document.getElementById('btnAgregarOperario').addEventListener('click', async ()=>{
+  const nombre = document.getElementById('op-nombre').value.trim();
+  if (!nombre){ showToast('Escribí un nombre de operario'); return; }
+  if (!sb){ showToast('Falta configurar Supabase'); return; }
+  const { error } = await sb.from('operarios_procesamiento').insert({ nombre, activo: true });
+  if (error){ console.error(error); showToast('Error al guardar'); return; }
+  document.getElementById('op-nombre').value = '';
+  showToast('Operario agregado');
+  loadOperarios();
+});
+
+async function toggleOperario(id, nuevoActivo){
+  const { error } = await sb.from('operarios_procesamiento').update({ activo: nuevoActivo }).eq('id', id);
+  if (error){ console.error(error); return; }
+  loadOperarios();
+}
+
+async function borrarOperario(id){
+  if (!confirm('¿Borrar este operario? Esto no borra los registros ya guardados.')) return;
+  const { error } = await sb.from('operarios_procesamiento').delete().eq('id', id);
+  if (error){ console.error(error); showToast('No se pudo borrar (¿tiene registros asociados?)'); return; }
+  loadOperarios();
+}
+
 /* ========= CARGAR REGISTRO ========= */
 document.getElementById('f-fecha').value = hoyLocal();
 
@@ -475,6 +556,7 @@ function actualizarPreview(){
 document.getElementById('btnGuardar').addEventListener('click', async ()=>{
   if (!sb){ showToast('Falta configurar Supabase'); return; }
   const producto_id = document.getElementById('f-producto').value;
+  const operario_id = document.getElementById('f-operario').value;
   const fecha = document.getElementById('f-fecha').value;
   const hora_inicio = document.getElementById('f-hora-inicio').value;
   const hora_fin = document.getElementById('f-hora-fin').value;
@@ -483,12 +565,13 @@ document.getElementById('btnGuardar').addEventListener('click', async ()=>{
   const observaciones = document.getElementById('f-obs').value.trim();
 
   if (!producto_id){ showToast('Elegí un producto'); return; }
+  if (!operario_id){ showToast('Elegí un operario'); return; }
   if (!fecha || !hora_inicio || !hora_fin){ showToast('Completá fecha y horarios'); return; }
   if (isNaN(kg_ingreso) || isNaN(kg_egreso)){ showToast('Completá los kg de ingreso y egreso'); return; }
   if (kg_egreso > kg_ingreso){ showToast('El kg de egreso no puede superar al de ingreso'); return; }
 
   const { error } = await sb.from('registros_procesamiento').insert({
-    producto_id, fecha, hora_inicio, hora_fin, kg_ingreso, kg_egreso, observaciones: observaciones || null
+    producto_id, operario_id, fecha, hora_inicio, hora_fin, kg_ingreso, kg_egreso, observaciones: observaciones || null
   });
   if (error){ console.error(error); showToast('Error al guardar el registro'); return; }
 
@@ -507,7 +590,7 @@ async function cargarRegistrosHoy(){
   const hoy = hoyLocal();
   const { data, error } = await sb
     .from('registros_procesamiento')
-    .select('*, productos_procesamiento(nombre)')
+    .select('*, productos_procesamiento(nombre), operarios_procesamiento(nombre)')
     .eq('fecha', hoy)
     .order('hora_inicio');
   if (error){ console.error(error); return; }
@@ -521,11 +604,12 @@ function renderRegistrosHoy(){
   box.innerHTML = registrosHoy.map(r=>{
     const m = calcularMetricas(r.kg_ingreso, r.kg_egreso, r.hora_inicio, r.hora_fin);
     const nombreProd = r.productos_procesamiento ? r.productos_procesamiento.nombre : '—';
+    const nombreOp = r.operarios_procesamiento ? r.operarios_procesamiento.nombre : '—';
     const colorPct = m.pctDesperdicio >= 25 ? 'color:var(--alert);background:var(--alert-light);' : 'color:var(--green-dark);background:var(--green-light);';
     return `
       <div class="row-item">
         <div>
-          <div class="ri-main"><b>${nombreProd}</b></div>
+          <div class="ri-main"><b>${nombreProd}</b> · ${nombreOp}</div>
           <div class="ri-sub mono">${r.hora_inicio.slice(0,5)}–${r.hora_fin.slice(0,5)} · ${fmtDuracion(m.horas)} · ${fmt1(r.kg_ingreso)}→${fmt1(r.kg_egreso)} kg · ${fmt1(m.kgHora)} kg/h</div>
         </div>
         <div class="ri-pct mono" style="${colorPct}">${fmtPct(m.pctDesperdicio)}</div>
@@ -540,24 +624,31 @@ document.getElementById('h-hasta').value = hoyLocal();
 document.getElementById('btnFiltrar').addEventListener('click', cargarHistorial);
 document.getElementById('btnImprimir').addEventListener('click', ()=>window.print());
 
+let historialRows = [];
+let editingRegistroId = null;
+
 async function cargarHistorial(){
   if (!sb) return;
   const desde = document.getElementById('h-desde').value;
   const hasta = document.getElementById('h-hasta').value;
   const productoId = document.getElementById('h-producto').value;
+  const operarioId = document.getElementById('h-operario').value;
 
   let query = sb.from('registros_procesamiento')
-    .select('*, productos_procesamiento(nombre)')
+    .select('*, productos_procesamiento(nombre), operarios_procesamiento(nombre)')
     .gte('fecha', desde).lte('fecha', hasta)
     .order('fecha').order('hora_inicio');
   if (productoId) query = query.eq('producto_id', productoId);
+  if (operarioId) query = query.eq('operario_id', operarioId);
 
   const { data, error } = await query;
   if (error){ console.error(error); return; }
+  editingRegistroId = null;
   renderReporte(data || [], desde, hasta, productoId);
 }
 
 function renderReporte(rows, desde, hasta, productoId){
+  historialRows = rows;
   const body = document.getElementById('reportBody');
   const foot = document.getElementById('reportFoot');
   const nombreFiltro = productoId ? (productos.find(p=>p.id===productoId)||{}).nombre : 'Todos los productos';
@@ -565,32 +656,23 @@ function renderReporte(rows, desde, hasta, productoId){
     `Período: ${desde} a ${hasta} · Producto: ${nombreFiltro || 'Todos'} · Generado: ${new Date().toLocaleString('es-AR')}`;
 
   if (!rows.length){
-    body.innerHTML = '<tr><td colspan="8" class="empty txt">Sin registros para el período seleccionado.</td></tr>';
+    body.innerHTML = '<tr><td colspan="9" class="empty txt">Sin registros para el período seleccionado.</td></tr>';
     foot.innerHTML = '';
     return;
   }
 
   let sumIngreso=0, sumEgreso=0, sumHoras=0;
-  body.innerHTML = rows.map(r=>{
+  rows.forEach(r=>{
     const m = calcularMetricas(r.kg_ingreso, r.kg_egreso, r.hora_inicio, r.hora_fin);
     sumIngreso += r.kg_ingreso; sumEgreso += r.kg_egreso; sumHoras += m.horas;
-    const nombreProd = r.productos_procesamiento ? r.productos_procesamiento.nombre : '—';
-    return `<tr>
-      <td class="txt">${r.fecha}</td>
-      <td class="txt">${nombreProd}</td>
-      <td>${fmtDuracion(m.horas)}</td>
-      <td>${fmt1(r.kg_ingreso)}</td>
-      <td>${fmt1(r.kg_egreso)}</td>
-      <td>${fmt1(m.kgHora)}</td>
-      <td>${fmtPct(m.pctDesperdicio)}</td>
-      <td class="txt no-print"><button class="btn btn-danger btn-small" onclick="borrarRegistro('${r.id}')">Borrar</button></td>
-    </tr>`;
-  }).join('');
+  });
+
+  body.innerHTML = rows.map(r => editingRegistroId === r.id ? filaEdicion(r) : filaVista(r)).join('');
 
   const pctTotal = sumIngreso>0 ? ((sumIngreso-sumEgreso)/sumIngreso)*100 : 0;
   const kgHoraProm = sumHoras>0 ? sumEgreso/sumHoras : 0;
   foot.innerHTML = `<tr>
-    <td class="txt" colspan="2">Totales / promedio</td>
+    <td class="txt" colspan="3">Totales / promedio</td>
     <td>${fmtDuracion(sumHoras)}</td>
     <td>${fmt1(sumIngreso)}</td>
     <td>${fmt1(sumEgreso)}</td>
@@ -598,6 +680,82 @@ function renderReporte(rows, desde, hasta, productoId){
     <td>${fmtPct(pctTotal)}</td>
     <td class="no-print"></td>
   </tr>`;
+}
+
+function filaVista(r){
+  const m = calcularMetricas(r.kg_ingreso, r.kg_egreso, r.hora_inicio, r.hora_fin);
+  const nombreProd = r.productos_procesamiento ? r.productos_procesamiento.nombre : '—';
+  const nombreOp = r.operarios_procesamiento ? r.operarios_procesamiento.nombre : '—';
+  return `<tr>
+    <td class="txt">${r.fecha}</td>
+    <td class="txt">${nombreProd}</td>
+    <td class="txt">${nombreOp}</td>
+    <td>${fmtDuracion(m.horas)}</td>
+    <td>${fmt1(r.kg_ingreso)}</td>
+    <td>${fmt1(r.kg_egreso)}</td>
+    <td>${fmt1(m.kgHora)}</td>
+    <td>${fmtPct(m.pctDesperdicio)}</td>
+    <td class="txt no-print">
+      <button class="btn btn-ghost btn-small" onclick="iniciarEdicion('${r.id}')">Editar</button>
+      <button class="btn btn-danger btn-small" onclick="borrarRegistro('${r.id}')">Borrar</button>
+    </td>
+  </tr>`;
+}
+
+function filaEdicion(r){
+  const opcionesProd = productos.map(p=>`<option value="${p.id}" ${p.id===r.producto_id?'selected':''}>${p.nombre}</option>`).join('');
+  const opcionesOp = operarios.map(o=>`<option value="${o.id}" ${o.id===r.operario_id?'selected':''}>${o.nombre}</option>`).join('');
+  return `<tr>
+    <td class="txt"><input type="date" id="e-fecha-${r.id}" value="${r.fecha}"></td>
+    <td class="txt"><select id="e-producto-${r.id}">${opcionesProd}</select></td>
+    <td class="txt"><select id="e-operario-${r.id}">${opcionesOp}</select></td>
+    <td>
+      <input type="time" id="e-hi-${r.id}" value="${r.hora_inicio.slice(0,5)}" style="margin-bottom:4px;">
+      <input type="time" id="e-hf-${r.id}" value="${r.hora_fin.slice(0,5)}">
+    </td>
+    <td><input type="number" step="0.1" min="0" id="e-kgi-${r.id}" value="${r.kg_ingreso}"></td>
+    <td><input type="number" step="0.1" min="0" id="e-kge-${r.id}" value="${r.kg_egreso}"></td>
+    <td class="txt">—</td>
+    <td class="txt">—</td>
+    <td class="txt no-print">
+      <button class="btn btn-primary btn-small" onclick="guardarEdicion('${r.id}')">Guardar</button>
+      <button class="btn btn-ghost btn-small" onclick="cancelarEdicion()">Cancelar</button>
+    </td>
+  </tr>`;
+}
+
+function iniciarEdicion(id){
+  editingRegistroId = id;
+  renderReporte(historialRows, document.getElementById('h-desde').value, document.getElementById('h-hasta').value, document.getElementById('h-producto').value);
+}
+
+function cancelarEdicion(){
+  editingRegistroId = null;
+  renderReporte(historialRows, document.getElementById('h-desde').value, document.getElementById('h-hasta').value, document.getElementById('h-producto').value);
+}
+
+async function guardarEdicion(id){
+  const producto_id = document.getElementById('e-producto-'+id).value;
+  const operario_id = document.getElementById('e-operario-'+id).value;
+  const fecha = document.getElementById('e-fecha-'+id).value;
+  const hora_inicio = document.getElementById('e-hi-'+id).value;
+  const hora_fin = document.getElementById('e-hf-'+id).value;
+  const kg_ingreso = parseFloat(document.getElementById('e-kgi-'+id).value);
+  const kg_egreso = parseFloat(document.getElementById('e-kge-'+id).value);
+
+  if (!producto_id || !operario_id || !fecha || !hora_inicio || !hora_fin){ showToast('Completá todos los campos'); return; }
+  if (isNaN(kg_ingreso) || isNaN(kg_egreso)){ showToast('Revisá los kg'); return; }
+  if (kg_egreso > kg_ingreso){ showToast('El kg de egreso no puede superar al de ingreso'); return; }
+
+  const { error } = await sb.from('registros_procesamiento').update({
+    producto_id, operario_id, fecha, hora_inicio, hora_fin, kg_ingreso, kg_egreso
+  }).eq('id', id);
+  if (error){ console.error(error); showToast('Error al guardar los cambios'); return; }
+
+  showToast('Registro actualizado');
+  editingRegistroId = null;
+  cargarHistorial();
+  cargarRegistrosHoy();
 }
 
 async function borrarRegistro(id){
@@ -611,6 +769,7 @@ async function borrarRegistro(id){
 /* ========= INIT ========= */
 if (sb){
   loadProductos();
+  loadOperarios();
   cargarRegistrosHoy();
 }
 </script>
