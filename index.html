@@ -120,8 +120,7 @@
   .prod-row .pname.inactivo{color:var(--ink-muted);text-decoration:line-through;}
   .prod-actions{display:flex;gap:6px;}
 
-  .filters{display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:end;}
-  @media(max-width:640px){.filters{grid-template-columns:1fr 1fr;}}
+  .filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;align-items:end;}
 
   table.report{width:100%;border-collapse:collapse;font-size:13px;}
   table.report th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-muted);padding:8px 6px;border-bottom:2px solid var(--border);font-weight:600;}
@@ -168,17 +167,22 @@
   <nav class="tabs no-print">
     <button data-tab="cargar" class="active">Cargar registro</button>
     <button data-tab="historial">Historial e informe</button>
-    <button data-tab="productos">Productos y operarios</button>
+    <button data-tab="productos">Productos / operarios / proveedores</button>
+    <button data-tab="empleados">Promedio por empleado</button>
   </nav>
 
   <!-- ===== TAB: CARGAR REGISTRO ===== -->
   <section class="panel active" id="panel-cargar">
     <div class="card">
       <h2>Nuevo registro</h2>
-      <div class="row2">
+      <div class="row3">
         <div class="field">
           <label>Producto</label>
           <select id="f-producto"></select>
+        </div>
+        <div class="field">
+          <label>Proveedor</label>
+          <select id="f-proveedor"></select>
         </div>
         <div class="field">
           <label>Operario</label>
@@ -267,6 +271,10 @@
           <select id="h-producto"><option value="">Todos</option></select>
         </div>
         <div class="field">
+          <label>Proveedor</label>
+          <select id="h-proveedor"><option value="">Todos</option></select>
+        </div>
+        <div class="field">
           <label>Operario</label>
           <select id="h-operario"><option value="">Todos</option></select>
         </div>
@@ -288,6 +296,7 @@
             <tr>
               <th class="txt">Fecha</th>
               <th class="txt">Producto</th>
+              <th class="txt">Proveedor</th>
               <th class="txt">Operario</th>
               <th>Duración</th>
               <th>Kg ingreso</th>
@@ -298,7 +307,7 @@
             </tr>
           </thead>
           <tbody id="reportBody">
-            <tr><td colspan="9" class="empty txt">Sin registros para el período seleccionado.</td></tr>
+            <tr><td colspan="10" class="empty txt">Sin registros para el período seleccionado.</td></tr>
           </tbody>
           <tfoot id="reportFoot"></tfoot>
         </table>
@@ -336,6 +345,49 @@
       <h2>Operarios cargados</h2>
       <div id="opList"><div class="empty">Todavía no cargaste operarios.</div></div>
     </div>
+
+    <div class="card">
+      <h2>Agregar proveedor</h2>
+      <div class="field">
+        <label>Nombre del proveedor</label>
+        <input type="text" id="pr-nombre" placeholder="Ej: Proveedor A">
+      </div>
+      <button class="btn btn-primary" id="btnAgregarProveedor">Agregar</button>
+    </div>
+    <div class="card">
+      <h2>Proveedores cargados</h2>
+      <div id="provList"><div class="empty">Todavía no cargaste proveedores.</div></div>
+    </div>
+  </section>
+
+  <!-- ===== TAB: PROMEDIO POR EMPLEADO ===== -->
+  <section class="panel" id="panel-empleados">
+    <div class="card no-print">
+      <h2>Filtros</h2>
+      <div class="filters">
+        <div class="field">
+          <label>Desde</label>
+          <input type="date" id="pe-desde">
+        </div>
+        <div class="field">
+          <label>Hasta</label>
+          <input type="date" id="pe-hasta">
+        </div>
+        <div class="field">
+          <label>Operario</label>
+          <select id="pe-operario"><option value="">Todos</option></select>
+        </div>
+        <div class="field">
+          <label>Producto</label>
+          <select id="pe-producto"><option value="">Todos</option></select>
+        </div>
+        <div class="field">
+          <button class="btn btn-ghost" id="btnFiltrarEmpleados" style="white-space:nowrap;">Aplicar</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="empleadosResumen"></div>
   </section>
 
 </div>
@@ -351,6 +403,7 @@ document.querySelectorAll('nav.tabs button').forEach(btn=>{
     btn.classList.add('active');
     document.getElementById('panel-'+btn.dataset.tab).classList.add('active');
     if (btn.dataset.tab === 'historial' && typeof cargarHistorial === 'function') cargarHistorial();
+    if (btn.dataset.tab === 'empleados' && typeof cargarPromedioEmpleados === 'function') cargarPromedioEmpleados();
   });
 });
 
@@ -409,6 +462,7 @@ function calcularMetricas(kgIngreso, kgEgreso, horaInicio, horaFin){
 /* ========= STATE ========= */
 let productos = [];
 let operarios = [];
+let proveedores = [];
 let registrosHoy = [];
 
 /* ========= PRODUCTOS ========= */
@@ -425,8 +479,9 @@ function renderProductSelects(){
   const activos = productos.filter(p=>p.activo);
   const selCargar = document.getElementById('f-producto');
   selCargar.innerHTML = activos.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('') || '<option value="">Sin productos activos</option>';
-  const selHist = document.getElementById('h-producto');
-  selHist.innerHTML = '<option value="">Todos</option>' + productos.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('');
+  const opcionesTodos = '<option value="">Todos</option>' + productos.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('');
+  document.getElementById('h-producto').innerHTML = opcionesTodos;
+  document.getElementById('pe-producto').innerHTML = opcionesTodos;
 }
 
 function renderProductList(){
@@ -481,8 +536,9 @@ function renderOperarioSelects(){
   const activos = operarios.filter(o=>o.activo);
   const selCargar = document.getElementById('f-operario');
   selCargar.innerHTML = activos.map(o=>`<option value="${o.id}">${o.nombre}</option>`).join('') || '<option value="">Sin operarios activos</option>';
-  const selHist = document.getElementById('h-operario');
-  selHist.innerHTML = '<option value="">Todos</option>' + operarios.map(o=>`<option value="${o.id}">${o.nombre}</option>`).join('');
+  const opcionesTodos = '<option value="">Todos</option>' + operarios.map(o=>`<option value="${o.id}">${o.nombre}</option>`).join('');
+  document.getElementById('h-operario').innerHTML = opcionesTodos;
+  document.getElementById('pe-operario').innerHTML = opcionesTodos;
 }
 
 function renderOperarioList(){
@@ -523,6 +579,62 @@ async function borrarOperario(id){
   loadOperarios();
 }
 
+/* ========= PROVEEDORES ========= */
+async function loadProveedores(){
+  if(!sb) return;
+  const { data, error } = await sb.from('proveedores_procesamiento').select('*').order('nombre');
+  if (error){ console.error(error); return; }
+  proveedores = data || [];
+  renderProveedorSelects();
+  renderProveedorList();
+}
+
+function renderProveedorSelects(){
+  const activos = proveedores.filter(p=>p.activo);
+  const selCargar = document.getElementById('f-proveedor');
+  selCargar.innerHTML = activos.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('') || '<option value="">Sin proveedores activos</option>';
+  const selHist = document.getElementById('h-proveedor');
+  selHist.innerHTML = '<option value="">Todos</option>' + proveedores.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('');
+}
+
+function renderProveedorList(){
+  const box = document.getElementById('provList');
+  if (!proveedores.length){ box.innerHTML = '<div class="empty">Todavía no cargaste proveedores.</div>'; return; }
+  box.innerHTML = proveedores.map(p=>`
+    <div class="prod-row">
+      <div class="pname ${p.activo?'':'inactivo'}">${p.nombre}</div>
+      <div class="prod-actions">
+        <button class="btn btn-ghost btn-small" onclick="toggleProveedor('${p.id}', ${!p.activo})">${p.activo?'Desactivar':'Activar'}</button>
+        <button class="btn btn-danger btn-small" onclick="borrarProveedor('${p.id}')">Borrar</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+document.getElementById('btnAgregarProveedor').addEventListener('click', async ()=>{
+  const nombre = document.getElementById('pr-nombre').value.trim();
+  if (!nombre){ showToast('Escribí un nombre de proveedor'); return; }
+  if (!sb){ showToast('Falta configurar Supabase'); return; }
+  const { error } = await sb.from('proveedores_procesamiento').insert({ nombre, activo: true });
+  if (error){ console.error(error); showToast('Error al guardar'); return; }
+  document.getElementById('pr-nombre').value = '';
+  showToast('Proveedor agregado');
+  loadProveedores();
+});
+
+async function toggleProveedor(id, nuevoActivo){
+  const { error } = await sb.from('proveedores_procesamiento').update({ activo: nuevoActivo }).eq('id', id);
+  if (error){ console.error(error); return; }
+  loadProveedores();
+}
+
+async function borrarProveedor(id){
+  if (!confirm('¿Borrar este proveedor? Esto no borra los registros ya guardados.')) return;
+  const { error } = await sb.from('proveedores_procesamiento').delete().eq('id', id);
+  if (error){ console.error(error); showToast('No se pudo borrar (¿tiene registros asociados?)'); return; }
+  loadProveedores();
+}
+
 /* ========= CARGAR REGISTRO ========= */
 document.getElementById('f-fecha').value = hoyLocal();
 
@@ -557,6 +669,7 @@ document.getElementById('btnGuardar').addEventListener('click', async ()=>{
   if (!sb){ showToast('Falta configurar Supabase'); return; }
   const producto_id = document.getElementById('f-producto').value;
   const operario_id = document.getElementById('f-operario').value;
+  const proveedor_id = document.getElementById('f-proveedor').value;
   const fecha = document.getElementById('f-fecha').value;
   const hora_inicio = document.getElementById('f-hora-inicio').value;
   const hora_fin = document.getElementById('f-hora-fin').value;
@@ -566,12 +679,13 @@ document.getElementById('btnGuardar').addEventListener('click', async ()=>{
 
   if (!producto_id){ showToast('Elegí un producto'); return; }
   if (!operario_id){ showToast('Elegí un operario'); return; }
+  if (!proveedor_id){ showToast('Elegí un proveedor'); return; }
   if (!fecha || !hora_inicio || !hora_fin){ showToast('Completá fecha y horarios'); return; }
   if (isNaN(kg_ingreso) || isNaN(kg_egreso)){ showToast('Completá los kg de ingreso y egreso'); return; }
   if (kg_egreso > kg_ingreso){ showToast('El kg de egreso no puede superar al de ingreso'); return; }
 
   const { error } = await sb.from('registros_procesamiento').insert({
-    producto_id, operario_id, fecha, hora_inicio, hora_fin, kg_ingreso, kg_egreso, observaciones: observaciones || null
+    producto_id, operario_id, proveedor_id, fecha, hora_inicio, hora_fin, kg_ingreso, kg_egreso, observaciones: observaciones || null
   });
   if (error){ console.error(error); showToast('Error al guardar el registro'); return; }
 
@@ -590,7 +704,7 @@ async function cargarRegistrosHoy(){
   const hoy = hoyLocal();
   const { data, error } = await sb
     .from('registros_procesamiento')
-    .select('*, productos_procesamiento(nombre), operarios_procesamiento(nombre)')
+    .select('*, productos_procesamiento(nombre), operarios_procesamiento(nombre), proveedores_procesamiento(nombre)')
     .eq('fecha', hoy)
     .order('hora_inicio');
   if (error){ console.error(error); return; }
@@ -605,11 +719,12 @@ function renderRegistrosHoy(){
     const m = calcularMetricas(r.kg_ingreso, r.kg_egreso, r.hora_inicio, r.hora_fin);
     const nombreProd = r.productos_procesamiento ? r.productos_procesamiento.nombre : '—';
     const nombreOp = r.operarios_procesamiento ? r.operarios_procesamiento.nombre : '—';
+    const nombreProv = r.proveedores_procesamiento ? r.proveedores_procesamiento.nombre : '—';
     const colorPct = m.pctDesperdicio >= 25 ? 'color:var(--alert);background:var(--alert-light);' : 'color:var(--green-dark);background:var(--green-light);';
     return `
       <div class="row-item">
         <div>
-          <div class="ri-main"><b>${nombreProd}</b> · ${nombreOp}</div>
+          <div class="ri-main"><b>${nombreProd}</b> · ${nombreProv} · ${nombreOp}</div>
           <div class="ri-sub mono">${r.hora_inicio.slice(0,5)}–${r.hora_fin.slice(0,5)} · ${fmtDuracion(m.horas)} · ${fmt1(r.kg_ingreso)}→${fmt1(r.kg_egreso)} kg · ${fmt1(m.kgHora)} kg/h</div>
         </div>
         <div class="ri-pct mono" style="${colorPct}">${fmtPct(m.pctDesperdicio)}</div>
@@ -633,13 +748,15 @@ async function cargarHistorial(){
   const hasta = document.getElementById('h-hasta').value;
   const productoId = document.getElementById('h-producto').value;
   const operarioId = document.getElementById('h-operario').value;
+  const proveedorId = document.getElementById('h-proveedor').value;
 
   let query = sb.from('registros_procesamiento')
-    .select('*, productos_procesamiento(nombre), operarios_procesamiento(nombre)')
+    .select('*, productos_procesamiento(nombre), operarios_procesamiento(nombre), proveedores_procesamiento(nombre)')
     .gte('fecha', desde).lte('fecha', hasta)
     .order('fecha').order('hora_inicio');
   if (productoId) query = query.eq('producto_id', productoId);
   if (operarioId) query = query.eq('operario_id', operarioId);
+  if (proveedorId) query = query.eq('proveedor_id', proveedorId);
 
   const { data, error } = await query;
   if (error){ console.error(error); return; }
@@ -656,7 +773,7 @@ function renderReporte(rows, desde, hasta, productoId){
     `Período: ${desde} a ${hasta} · Producto: ${nombreFiltro || 'Todos'} · Generado: ${new Date().toLocaleString('es-AR')}`;
 
   if (!rows.length){
-    body.innerHTML = '<tr><td colspan="9" class="empty txt">Sin registros para el período seleccionado.</td></tr>';
+    body.innerHTML = '<tr><td colspan="10" class="empty txt">Sin registros para el período seleccionado.</td></tr>';
     foot.innerHTML = '';
     return;
   }
@@ -672,7 +789,7 @@ function renderReporte(rows, desde, hasta, productoId){
   const pctTotal = sumIngreso>0 ? ((sumIngreso-sumEgreso)/sumIngreso)*100 : 0;
   const kgHoraProm = sumHoras>0 ? sumEgreso/sumHoras : 0;
   foot.innerHTML = `<tr>
-    <td class="txt" colspan="3">Totales / promedio</td>
+    <td class="txt" colspan="4">Totales / promedio</td>
     <td>${fmtDuracion(sumHoras)}</td>
     <td>${fmt1(sumIngreso)}</td>
     <td>${fmt1(sumEgreso)}</td>
@@ -686,9 +803,11 @@ function filaVista(r){
   const m = calcularMetricas(r.kg_ingreso, r.kg_egreso, r.hora_inicio, r.hora_fin);
   const nombreProd = r.productos_procesamiento ? r.productos_procesamiento.nombre : '—';
   const nombreOp = r.operarios_procesamiento ? r.operarios_procesamiento.nombre : '—';
+  const nombreProv = r.proveedores_procesamiento ? r.proveedores_procesamiento.nombre : '—';
   return `<tr>
     <td class="txt">${r.fecha}</td>
     <td class="txt">${nombreProd}</td>
+    <td class="txt">${nombreProv}</td>
     <td class="txt">${nombreOp}</td>
     <td>${fmtDuracion(m.horas)}</td>
     <td>${fmt1(r.kg_ingreso)}</td>
@@ -705,9 +824,11 @@ function filaVista(r){
 function filaEdicion(r){
   const opcionesProd = productos.map(p=>`<option value="${p.id}" ${p.id===r.producto_id?'selected':''}>${p.nombre}</option>`).join('');
   const opcionesOp = operarios.map(o=>`<option value="${o.id}" ${o.id===r.operario_id?'selected':''}>${o.nombre}</option>`).join('');
+  const opcionesProv = proveedores.map(p=>`<option value="${p.id}" ${p.id===r.proveedor_id?'selected':''}>${p.nombre}</option>`).join('');
   return `<tr>
     <td class="txt"><input type="date" id="e-fecha-${r.id}" value="${r.fecha}"></td>
     <td class="txt"><select id="e-producto-${r.id}">${opcionesProd}</select></td>
+    <td class="txt"><select id="e-proveedor-${r.id}">${opcionesProv}</select></td>
     <td class="txt"><select id="e-operario-${r.id}">${opcionesOp}</select></td>
     <td>
       <input type="time" id="e-hi-${r.id}" value="${r.hora_inicio.slice(0,5)}" style="margin-bottom:4px;">
@@ -737,18 +858,19 @@ function cancelarEdicion(){
 async function guardarEdicion(id){
   const producto_id = document.getElementById('e-producto-'+id).value;
   const operario_id = document.getElementById('e-operario-'+id).value;
+  const proveedor_id = document.getElementById('e-proveedor-'+id).value;
   const fecha = document.getElementById('e-fecha-'+id).value;
   const hora_inicio = document.getElementById('e-hi-'+id).value;
   const hora_fin = document.getElementById('e-hf-'+id).value;
   const kg_ingreso = parseFloat(document.getElementById('e-kgi-'+id).value);
   const kg_egreso = parseFloat(document.getElementById('e-kge-'+id).value);
 
-  if (!producto_id || !operario_id || !fecha || !hora_inicio || !hora_fin){ showToast('Completá todos los campos'); return; }
+  if (!producto_id || !operario_id || !proveedor_id || !fecha || !hora_inicio || !hora_fin){ showToast('Completá todos los campos'); return; }
   if (isNaN(kg_ingreso) || isNaN(kg_egreso)){ showToast('Revisá los kg'); return; }
   if (kg_egreso > kg_ingreso){ showToast('El kg de egreso no puede superar al de ingreso'); return; }
 
   const { error } = await sb.from('registros_procesamiento').update({
-    producto_id, operario_id, fecha, hora_inicio, hora_fin, kg_ingreso, kg_egreso
+    producto_id, operario_id, proveedor_id, fecha, hora_inicio, hora_fin, kg_ingreso, kg_egreso
   }).eq('id', id);
   if (error){ console.error(error); showToast('Error al guardar los cambios'); return; }
 
@@ -766,10 +888,103 @@ async function borrarRegistro(id){
   cargarRegistrosHoy();
 }
 
+/* ========= PROMEDIO POR EMPLEADO ========= */
+function inicioMesLocal(){
+  const d = new Date();
+  const local = new Date(d.getTime() - d.getTimezoneOffset()*60000);
+  local.setDate(1);
+  return local.toISOString().split('T')[0];
+}
+document.getElementById('pe-desde').value = inicioMesLocal();
+document.getElementById('pe-hasta').value = hoyLocal();
+document.getElementById('btnFiltrarEmpleados').addEventListener('click', cargarPromedioEmpleados);
+
+async function cargarPromedioEmpleados(){
+  if (!sb) return;
+  const desde = document.getElementById('pe-desde').value;
+  const hasta = document.getElementById('pe-hasta').value;
+  const operarioId = document.getElementById('pe-operario').value;
+  const productoId = document.getElementById('pe-producto').value;
+
+  let query = sb.from('registros_procesamiento')
+    .select('*, productos_procesamiento(nombre), operarios_procesamiento(nombre)')
+    .gte('fecha', desde).lte('fecha', hasta);
+  if (operarioId) query = query.eq('operario_id', operarioId);
+  if (productoId) query = query.eq('producto_id', productoId);
+
+  const { data, error } = await query;
+  if (error){ console.error(error); return; }
+  renderPromedioEmpleados(data || [], operarioId);
+}
+
+function renderPromedioEmpleados(rows, operarioIdFiltrado){
+  const box = document.getElementById('empleadosResumen');
+
+  const listaOperarios = operarioIdFiltrado ? operarios.filter(o=>o.id===operarioIdFiltrado) : operarios;
+  if (!listaOperarios.length){
+    box.innerHTML = '<div class="card"><div class="empty">Todavía no cargaste operarios.</div></div>';
+    return;
+  }
+
+  const porOperario = {};
+  listaOperarios.forEach(o=>{ porOperario[o.id] = { nombre:o.nombre, productos:{} }; });
+
+  rows.forEach(r=>{
+    if (!r.operario_id || !porOperario[r.operario_id]) return;
+    const m = calcularMetricas(r.kg_ingreso, r.kg_egreso, r.hora_inicio, r.hora_fin);
+    const nombreProd = r.productos_procesamiento ? r.productos_procesamiento.nombre : '—';
+    const key = r.producto_id || nombreProd;
+    if (!porOperario[r.operario_id].productos[key]){
+      porOperario[r.operario_id].productos[key] = { nombre: nombreProd, registros:0, sumEgreso:0, sumIngreso:0, sumHoras:0 };
+    }
+    const p = porOperario[r.operario_id].productos[key];
+    p.registros++;
+    p.sumEgreso += r.kg_egreso;
+    p.sumIngreso += r.kg_ingreso;
+    p.sumHoras += m.horas;
+  });
+
+  const listaOrdenada = Object.values(porOperario).sort((a,b)=>a.nombre.localeCompare(b.nombre,'es'));
+
+  box.innerHTML = listaOrdenada.map(op=>{
+    const prods = Object.values(op.productos);
+    let tablaHtml;
+    if (!prods.length){
+      tablaHtml = '<div class="empty">Sin registros en el período seleccionado.</div>';
+    } else {
+      tablaHtml = `
+        <div style="overflow-x:auto;">
+        <table class="report">
+          <thead><tr>
+            <th class="txt">Producto</th>
+            <th>Registros</th>
+            <th>Kg/h promedio</th>
+            <th>% desp. promedio</th>
+          </tr></thead>
+          <tbody>
+            ${prods.map(p=>{
+              const kgHoraProm = p.sumHoras>0 ? p.sumEgreso/p.sumHoras : 0;
+              const pctProm = p.sumIngreso>0 ? ((p.sumIngreso-p.sumEgreso)/p.sumIngreso)*100 : 0;
+              return `<tr>
+                <td class="txt">${p.nombre}</td>
+                <td>${p.registros}</td>
+                <td>${fmt1(kgHoraProm)}</td>
+                <td>${fmtPct(pctProm)}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+        </div>`;
+    }
+    return `<div class="card"><h2>${op.nombre}</h2>${tablaHtml}</div>`;
+  }).join('');
+}
+
 /* ========= INIT ========= */
 if (sb){
   loadProductos();
   loadOperarios();
+  loadProveedores();
   cargarRegistrosHoy();
 }
 </script>
