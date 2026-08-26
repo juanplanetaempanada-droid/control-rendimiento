@@ -325,7 +325,7 @@
             <tr>
               <th class="txt">Producto</th>
               <th>Registros</th>
-              <th>Duración promedio</th>
+              <th>Kg/h promedio</th>
               <th>% desperdicio promedio</th>
             </tr>
           </thead>
@@ -803,12 +803,12 @@ function renderPromedioProducto(rows){
   });
   const lista = Object.values(porProducto).sort((a,b)=>a.nombre.localeCompare(b.nombre,'es'));
   tbody.innerHTML = lista.map(p=>{
-    const duracionProm = p.registros>0 ? p.sumHoras/p.registros : 0;
+    const kgHoraProm = p.sumHoras>0 ? p.sumEgreso/p.sumHoras : 0;
     const pctProm = p.sumIngreso>0 ? ((p.sumIngreso-p.sumEgreso)/p.sumIngreso)*100 : 0;
     return `<tr>
       <td class="txt">${p.nombre}</td>
       <td>${p.registros}</td>
-      <td>${fmtDuracion(duracionProm)}</td>
+      <td>${fmt1(kgHoraProm)}</td>
       <td>${fmtPct(pctProm)}</td>
     </tr>`;
   }).join('');
