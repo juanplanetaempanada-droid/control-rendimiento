@@ -139,7 +139,7 @@
   @media print{
     nav.tabs, .no-print{display:none !important;}
     section.panel{display:none !important;}
-    section.panel.printing{display:block !important;}
+    section.panel.active{display:block !important;}
     body{background:#fff;}
     .app{max-width:100%;padding:0;}
     .card{border:none;padding:0;box-shadow:none;}
@@ -314,6 +314,25 @@
       </div>
       <div class="no-print" style="margin-top:16px;">
         <button class="btn btn-ghost" id="btnImprimir">Imprimir informe</button>
+      </div>
+    </div>
+
+    <div class="card" id="promedioProductoCard">
+      <h2>Promedio por producto</h2>
+      <div style="overflow-x:auto;">
+        <table class="report" id="promedioProductoTable">
+          <thead>
+            <tr>
+              <th class="txt">Producto</th>
+              <th>Registros</th>
+              <th>Duración promedio</th>
+              <th>% desperdicio promedio</th>
+            </tr>
+          </thead>
+          <tbody id="promedioProductoBody">
+            <tr><td colspan="4" class="empty txt">Sin registros para el período seleccionado.</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </section>
@@ -764,8 +783,40 @@ async function cargarHistorial(){
   renderReporte(data || [], desde, hasta, productoId);
 }
 
+function renderPromedioProducto(rows){
+  const tbody = document.getElementById('promedioProductoBody');
+  if (!rows.length){
+    tbody.innerHTML = '<tr><td colspan="4" class="empty txt">Sin registros para el período seleccionado.</td></tr>';
+    return;
+  }
+  const porProducto = {};
+  rows.forEach(r=>{
+    const nombreProd = r.productos_procesamiento ? r.productos_procesamiento.nombre : '—';
+    const key = r.producto_id || nombreProd;
+    if (!porProducto[key]) porProducto[key] = { nombre: nombreProd, registros:0, sumHoras:0, sumIngreso:0, sumEgreso:0 };
+    const m = calcularMetricas(r.kg_ingreso, r.kg_egreso, r.hora_inicio, r.hora_fin);
+    const p = porProducto[key];
+    p.registros++;
+    p.sumHoras += m.horas;
+    p.sumIngreso += r.kg_ingreso;
+    p.sumEgreso += r.kg_egreso;
+  });
+  const lista = Object.values(porProducto).sort((a,b)=>a.nombre.localeCompare(b.nombre,'es'));
+  tbody.innerHTML = lista.map(p=>{
+    const duracionProm = p.registros>0 ? p.sumHoras/p.registros : 0;
+    const pctProm = p.sumIngreso>0 ? ((p.sumIngreso-p.sumEgreso)/p.sumIngreso)*100 : 0;
+    return `<tr>
+      <td class="txt">${p.nombre}</td>
+      <td>${p.registros}</td>
+      <td>${fmtDuracion(duracionProm)}</td>
+      <td>${fmtPct(pctProm)}</td>
+    </tr>`;
+  }).join('');
+}
+
 function renderReporte(rows, desde, hasta, productoId){
   historialRows = rows;
+  renderPromedioProducto(rows);
   const body = document.getElementById('reportBody');
   const foot = document.getElementById('reportFoot');
   const nombreFiltro = productoId ? (productos.find(p=>p.id===productoId)||{}).nombre : 'Todos los productos';
