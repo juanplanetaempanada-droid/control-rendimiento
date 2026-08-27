@@ -503,18 +503,52 @@ function renderProductSelects(){
   document.getElementById('pe-producto').innerHTML = opcionesTodos;
 }
 
+let editingProductoId = null;
+
 function renderProductList(){
   const box = document.getElementById('prodList');
   if (!productos.length){ box.innerHTML = '<div class="empty">Todavía no cargaste productos.</div>'; return; }
-  box.innerHTML = productos.map(p=>`
+  box.innerHTML = productos.map(p=>{
+    if (editingProductoId === p.id){
+      return `
+    <div class="prod-row">
+      <input type="text" id="edit-prod-${p.id}" value="${p.nombre.replace(/"/g,'&quot;')}" style="flex:1;margin-right:10px;">
+      <div class="prod-actions">
+        <button class="btn btn-primary btn-small" onclick="guardarEdicionProducto('${p.id}')">Guardar</button>
+        <button class="btn btn-ghost btn-small" onclick="cancelarEdicionProducto()">Cancelar</button>
+      </div>
+    </div>`;
+    }
+    return `
     <div class="prod-row">
       <div class="pname ${p.activo?'':'inactivo'}">${p.nombre}</div>
       <div class="prod-actions">
+        <button class="btn btn-ghost btn-small" onclick="iniciarEdicionProducto('${p.id}')">Editar</button>
         <button class="btn btn-ghost btn-small" onclick="toggleProducto('${p.id}', ${!p.activo})">${p.activo?'Desactivar':'Activar'}</button>
         <button class="btn btn-danger btn-small" onclick="borrarProducto('${p.id}')">Borrar</button>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
+}
+
+function iniciarEdicionProducto(id){
+  editingProductoId = id;
+  renderProductList();
+}
+
+function cancelarEdicionProducto(){
+  editingProductoId = null;
+  renderProductList();
+}
+
+async function guardarEdicionProducto(id){
+  const nuevoNombre = document.getElementById('edit-prod-'+id).value.trim();
+  if (!nuevoNombre){ showToast('El nombre no puede quedar vacío'); return; }
+  const { error } = await sb.from('productos_procesamiento').update({ nombre: nuevoNombre }).eq('id', id);
+  if (error){ console.error(error); showToast('Error al guardar'); return; }
+  editingProductoId = null;
+  showToast('Producto actualizado');
+  loadProductos();
 }
 
 document.getElementById('btnAgregarProducto').addEventListener('click', async ()=>{
@@ -560,18 +594,52 @@ function renderOperarioSelects(){
   document.getElementById('pe-operario').innerHTML = opcionesTodos;
 }
 
+let editingOperarioId = null;
+
 function renderOperarioList(){
   const box = document.getElementById('opList');
   if (!operarios.length){ box.innerHTML = '<div class="empty">Todavía no cargaste operarios.</div>'; return; }
-  box.innerHTML = operarios.map(o=>`
+  box.innerHTML = operarios.map(o=>{
+    if (editingOperarioId === o.id){
+      return `
+    <div class="prod-row">
+      <input type="text" id="edit-op-${o.id}" value="${o.nombre.replace(/"/g,'&quot;')}" style="flex:1;margin-right:10px;">
+      <div class="prod-actions">
+        <button class="btn btn-primary btn-small" onclick="guardarEdicionOperario('${o.id}')">Guardar</button>
+        <button class="btn btn-ghost btn-small" onclick="cancelarEdicionOperario()">Cancelar</button>
+      </div>
+    </div>`;
+    }
+    return `
     <div class="prod-row">
       <div class="pname ${o.activo?'':'inactivo'}">${o.nombre}</div>
       <div class="prod-actions">
+        <button class="btn btn-ghost btn-small" onclick="iniciarEdicionOperario('${o.id}')">Editar</button>
         <button class="btn btn-ghost btn-small" onclick="toggleOperario('${o.id}', ${!o.activo})">${o.activo?'Desactivar':'Activar'}</button>
         <button class="btn btn-danger btn-small" onclick="borrarOperario('${o.id}')">Borrar</button>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
+}
+
+function iniciarEdicionOperario(id){
+  editingOperarioId = id;
+  renderOperarioList();
+}
+
+function cancelarEdicionOperario(){
+  editingOperarioId = null;
+  renderOperarioList();
+}
+
+async function guardarEdicionOperario(id){
+  const nuevoNombre = document.getElementById('edit-op-'+id).value.trim();
+  if (!nuevoNombre){ showToast('El nombre no puede quedar vacío'); return; }
+  const { error } = await sb.from('operarios_procesamiento').update({ nombre: nuevoNombre }).eq('id', id);
+  if (error){ console.error(error); showToast('Error al guardar'); return; }
+  editingOperarioId = null;
+  showToast('Operario actualizado');
+  loadOperarios();
 }
 
 document.getElementById('btnAgregarOperario').addEventListener('click', async ()=>{
@@ -616,18 +684,52 @@ function renderProveedorSelects(){
   selHist.innerHTML = '<option value="">Todos</option>' + proveedores.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('');
 }
 
+let editingProveedorId = null;
+
 function renderProveedorList(){
   const box = document.getElementById('provList');
   if (!proveedores.length){ box.innerHTML = '<div class="empty">Todavía no cargaste proveedores.</div>'; return; }
-  box.innerHTML = proveedores.map(p=>`
+  box.innerHTML = proveedores.map(p=>{
+    if (editingProveedorId === p.id){
+      return `
+    <div class="prod-row">
+      <input type="text" id="edit-prov-${p.id}" value="${p.nombre.replace(/"/g,'&quot;')}" style="flex:1;margin-right:10px;">
+      <div class="prod-actions">
+        <button class="btn btn-primary btn-small" onclick="guardarEdicionProveedor('${p.id}')">Guardar</button>
+        <button class="btn btn-ghost btn-small" onclick="cancelarEdicionProveedor()">Cancelar</button>
+      </div>
+    </div>`;
+    }
+    return `
     <div class="prod-row">
       <div class="pname ${p.activo?'':'inactivo'}">${p.nombre}</div>
       <div class="prod-actions">
+        <button class="btn btn-ghost btn-small" onclick="iniciarEdicionProveedor('${p.id}')">Editar</button>
         <button class="btn btn-ghost btn-small" onclick="toggleProveedor('${p.id}', ${!p.activo})">${p.activo?'Desactivar':'Activar'}</button>
         <button class="btn btn-danger btn-small" onclick="borrarProveedor('${p.id}')">Borrar</button>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
+}
+
+function iniciarEdicionProveedor(id){
+  editingProveedorId = id;
+  renderProveedorList();
+}
+
+function cancelarEdicionProveedor(){
+  editingProveedorId = null;
+  renderProveedorList();
+}
+
+async function guardarEdicionProveedor(id){
+  const nuevoNombre = document.getElementById('edit-prov-'+id).value.trim();
+  if (!nuevoNombre){ showToast('El nombre no puede quedar vacío'); return; }
+  const { error } = await sb.from('proveedores_procesamiento').update({ nombre: nuevoNombre }).eq('id', id);
+  if (error){ console.error(error); showToast('Error al guardar'); return; }
+  editingProveedorId = null;
+  showToast('Proveedor actualizado');
+  loadProveedores();
 }
 
 document.getElementById('btnAgregarProveedor').addEventListener('click', async ()=>{
