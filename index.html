@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -68,6 +69,8 @@
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
   .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
   @media(max-width:520px){.row3{grid-template-columns:1fr 1fr;}}
+  .row4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;}
+  @media(max-width:640px){.row4{grid-template-columns:1fr 1fr;}}
 
   input,select,textarea{
     width:100%;padding:11px 12px;border:1.5px solid var(--border);border-radius:8px;
@@ -167,7 +170,7 @@
   <nav class="tabs no-print">
     <button data-tab="cargar" class="active">Cargar registro</button>
     <button data-tab="historial">Historial e informe</button>
-    <button data-tab="productos">Productos / operarios / proveedores</button>
+    <button data-tab="productos">Configuración</button>
     <button data-tab="empleados">Promedio por empleado</button>
   </nav>
 
@@ -175,7 +178,7 @@
   <section class="panel active" id="panel-cargar">
     <div class="card">
       <h2>Nuevo registro</h2>
-      <div class="row3">
+      <div class="row4">
         <div class="field">
           <label>Producto</label>
           <select id="f-producto"></select>
@@ -187,6 +190,10 @@
         <div class="field">
           <label>Operario</label>
           <select id="f-operario"></select>
+        </div>
+        <div class="field">
+          <label>Maquinaria</label>
+          <select id="f-maquinaria"></select>
         </div>
       </div>
       <div class="row2">
@@ -279,6 +286,10 @@
           <select id="h-operario"><option value="">Todos</option></select>
         </div>
         <div class="field">
+          <label>Maquinaria</label>
+          <select id="h-maquina"><option value="">Todas</option></select>
+        </div>
+        <div class="field">
           <button class="btn btn-ghost" id="btnFiltrar" style="white-space:nowrap;">Aplicar</button>
         </div>
       </div>
@@ -298,6 +309,7 @@
               <th class="txt">Producto</th>
               <th class="txt">Proveedor</th>
               <th class="txt">Operario</th>
+              <th class="txt">Máquina</th>
               <th>Duración</th>
               <th>Kg ingreso</th>
               <th>Kg egreso</th>
@@ -307,7 +319,7 @@
             </tr>
           </thead>
           <tbody id="reportBody">
-            <tr><td colspan="10" class="empty txt">Sin registros para el período seleccionado.</td></tr>
+            <tr><td colspan="11" class="empty txt">Sin registros para el período seleccionado.</td></tr>
           </tbody>
           <tfoot id="reportFoot"></tfoot>
         </table>
@@ -376,6 +388,25 @@
     <div class="card">
       <h2>Proveedores cargados</h2>
       <div id="provList"><div class="empty">Todavía no cargaste proveedores.</div></div>
+    </div>
+
+    <div class="card">
+      <h2>Agregar maquinaria</h2>
+      <div class="row2">
+        <div class="field">
+          <label>Nombre / identificador</label>
+          <input type="text" id="mq-nombre" placeholder="Ej: Peladora 1">
+        </div>
+        <div class="field">
+          <label>Modelo</label>
+          <input type="text" id="mq-modelo" placeholder="Ej: Tourella VZ-200">
+        </div>
+      </div>
+      <button class="btn btn-primary" id="btnAgregarMaquinaria">Agregar</button>
+    </div>
+    <div class="card">
+      <h2>Maquinaria cargada</h2>
+      <div id="mqList"><div class="empty">Todavía no cargaste maquinaria.</div></div>
     </div>
   </section>
 
@@ -482,6 +513,7 @@ function calcularMetricas(kgIngreso, kgEgreso, horaInicio, horaFin){
 let productos = [];
 let operarios = [];
 let proveedores = [];
+let maquinaria = [];
 let registrosHoy = [];
 
 /* ========= PRODUCTOS ========= */
@@ -756,6 +788,102 @@ async function borrarProveedor(id){
   loadProveedores();
 }
 
+/* ========= MAQUINARIA ========= */
+async function loadMaquinaria(){
+  if(!sb) return;
+  const { data, error } = await sb.from('maquinaria_procesamiento').select('*').order('nombre');
+  if (error){ console.error(error); return; }
+  maquinaria = data || [];
+  renderMaquinariaSelects();
+  renderMaquinariaList();
+}
+
+function renderMaquinariaSelects(){
+  const activas = maquinaria.filter(m=>m.activo);
+  const selCargar = document.getElementById('f-maquinaria');
+  selCargar.innerHTML = activas.map(m=>`<option value="${m.id}">${m.nombre}${m.modelo?' — '+m.modelo:''}</option>`).join('') || '<option value="">Sin maquinaria activa</option>';
+  const opcionesTodas = '<option value="">Todas</option>' + maquinaria.map(m=>`<option value="${m.id}">${m.nombre}${m.modelo?' — '+m.modelo:''}</option>`).join('');
+  document.getElementById('h-maquina').innerHTML = opcionesTodas;
+}
+
+let editingMaquinariaId = null;
+
+function renderMaquinariaList(){
+  const box = document.getElementById('mqList');
+  if (!maquinaria.length){ box.innerHTML = '<div class="empty">Todavía no cargaste maquinaria.</div>'; return; }
+  box.innerHTML = maquinaria.map(m=>{
+    if (editingMaquinariaId === m.id){
+      return `
+    <div class="prod-row">
+      <div style="flex:1;display:flex;gap:8px;margin-right:10px;">
+        <input type="text" id="edit-mq-nombre-${m.id}" value="${m.nombre.replace(/"/g,'&quot;')}" placeholder="Nombre">
+        <input type="text" id="edit-mq-modelo-${m.id}" value="${(m.modelo||'').replace(/"/g,'&quot;')}" placeholder="Modelo">
+      </div>
+      <div class="prod-actions">
+        <button class="btn btn-primary btn-small" onclick="guardarEdicionMaquinaria('${m.id}')">Guardar</button>
+        <button class="btn btn-ghost btn-small" onclick="cancelarEdicionMaquinaria()">Cancelar</button>
+      </div>
+    </div>`;
+    }
+    return `
+    <div class="prod-row">
+      <div class="pname ${m.activo?'':'inactivo'}">${m.nombre}${m.modelo?' <span style="color:var(--ink-muted);font-weight:400;">— '+m.modelo+'</span>':''}</div>
+      <div class="prod-actions">
+        <button class="btn btn-ghost btn-small" onclick="iniciarEdicionMaquinaria('${m.id}')">Editar</button>
+        <button class="btn btn-ghost btn-small" onclick="toggleMaquinaria('${m.id}', ${!m.activo})">${m.activo?'Desactivar':'Activar'}</button>
+        <button class="btn btn-danger btn-small" onclick="borrarMaquinaria('${m.id}')">Borrar</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function iniciarEdicionMaquinaria(id){
+  editingMaquinariaId = id;
+  renderMaquinariaList();
+}
+
+function cancelarEdicionMaquinaria(){
+  editingMaquinariaId = null;
+  renderMaquinariaList();
+}
+
+async function guardarEdicionMaquinaria(id){
+  const nuevoNombre = document.getElementById('edit-mq-nombre-'+id).value.trim();
+  const nuevoModelo = document.getElementById('edit-mq-modelo-'+id).value.trim();
+  if (!nuevoNombre){ showToast('El nombre no puede quedar vacío'); return; }
+  const { error } = await sb.from('maquinaria_procesamiento').update({ nombre: nuevoNombre, modelo: nuevoModelo || null }).eq('id', id);
+  if (error){ console.error(error); showToast('Error al guardar'); return; }
+  editingMaquinariaId = null;
+  showToast('Maquinaria actualizada');
+  loadMaquinaria();
+}
+
+document.getElementById('btnAgregarMaquinaria').addEventListener('click', async ()=>{
+  const nombre = document.getElementById('mq-nombre').value.trim();
+  const modelo = document.getElementById('mq-modelo').value.trim();
+  if (!nombre){ showToast('Escribí un nombre de maquinaria'); return; }
+  if (!sb){ showToast('Falta configurar Supabase'); return; }
+  const { error } = await sb.from('maquinaria_procesamiento').insert({ nombre, modelo: modelo || null, activo: true });
+  if (error){ console.error(error); showToast('Error al guardar'); return; }
+  document.getElementById('mq-nombre').value = '';
+  document.getElementById('mq-modelo').value = '';
+  showToast('Maquinaria agregada');
+  loadMaquinaria();
+});
+
+async function toggleMaquinaria(id, nuevoActivo){
+  const { error } = await sb.from('maquinaria_procesamiento').update({ activo: nuevoActivo }).eq('id', id);
+  if (error){ console.error(error); return; }
+  loadMaquinaria();
+}
+
+async function borrarMaquinaria(id){
+  if (!confirm('¿Borrar esta maquinaria? Esto no borra los registros ya guardados.')) return;
+  const { error } = await sb.from('maquinaria_procesamiento').delete().eq('id', id);
+  if (error){ console.error(error); showToast('No se pudo borrar (¿tiene registros asociados?)'); return; }
+  loadMaquinaria();
+}
+
 /* ========= CARGAR REGISTRO ========= */
 document.getElementById('f-fecha').value = hoyLocal();
 
@@ -791,6 +919,7 @@ document.getElementById('btnGuardar').addEventListener('click', async ()=>{
   const producto_id = document.getElementById('f-producto').value;
   const operario_id = document.getElementById('f-operario').value;
   const proveedor_id = document.getElementById('f-proveedor').value;
+  const maquina_id = document.getElementById('f-maquinaria').value;
   const fecha = document.getElementById('f-fecha').value;
   const hora_inicio = document.getElementById('f-hora-inicio').value;
   const hora_fin = document.getElementById('f-hora-fin').value;
@@ -801,12 +930,13 @@ document.getElementById('btnGuardar').addEventListener('click', async ()=>{
   if (!producto_id){ showToast('Elegí un producto'); return; }
   if (!operario_id){ showToast('Elegí un operario'); return; }
   if (!proveedor_id){ showToast('Elegí un proveedor'); return; }
+  if (!maquina_id){ showToast('Elegí una maquinaria'); return; }
   if (!fecha || !hora_inicio || !hora_fin){ showToast('Completá fecha y horarios'); return; }
   if (isNaN(kg_ingreso) || isNaN(kg_egreso)){ showToast('Completá los kg de ingreso y egreso'); return; }
   if (kg_egreso > kg_ingreso){ showToast('El kg de egreso no puede superar al de ingreso'); return; }
 
   const { error } = await sb.from('registros_procesamiento').insert({
-    producto_id, operario_id, proveedor_id, fecha, hora_inicio, hora_fin, kg_ingreso, kg_egreso, observaciones: observaciones || null
+    producto_id, operario_id, proveedor_id, maquina_id, fecha, hora_inicio, hora_fin, kg_ingreso, kg_egreso, observaciones: observaciones || null
   });
   if (error){ console.error(error); showToast('Error al guardar el registro'); return; }
 
@@ -825,7 +955,7 @@ async function cargarRegistrosHoy(){
   const hoy = hoyLocal();
   const { data, error } = await sb
     .from('registros_procesamiento')
-    .select('*, productos_procesamiento(nombre), operarios_procesamiento(nombre), proveedores_procesamiento(nombre)')
+    .select('*, productos_procesamiento(nombre), operarios_procesamiento(nombre), proveedores_procesamiento(nombre), maquinaria_procesamiento(nombre)')
     .eq('fecha', hoy)
     .order('hora_inicio');
   if (error){ console.error(error); return; }
@@ -841,11 +971,12 @@ function renderRegistrosHoy(){
     const nombreProd = r.productos_procesamiento ? r.productos_procesamiento.nombre : '—';
     const nombreOp = r.operarios_procesamiento ? r.operarios_procesamiento.nombre : '—';
     const nombreProv = r.proveedores_procesamiento ? r.proveedores_procesamiento.nombre : '—';
+    const nombreMaq = r.maquinaria_procesamiento ? r.maquinaria_procesamiento.nombre : '—';
     const colorPct = m.pctDesperdicio >= 25 ? 'color:var(--alert);background:var(--alert-light);' : 'color:var(--green-dark);background:var(--green-light);';
     return `
       <div class="row-item">
         <div>
-          <div class="ri-main"><b>${nombreProd}</b> · ${nombreProv} · ${nombreOp}</div>
+          <div class="ri-main"><b>${nombreProd}</b> · ${nombreProv} · ${nombreOp} · ${nombreMaq}</div>
           <div class="ri-sub mono">${r.hora_inicio.slice(0,5)}–${r.hora_fin.slice(0,5)} · ${fmtDuracion(m.horas)} · ${fmt1(r.kg_ingreso)}→${fmt1(r.kg_egreso)} kg · ${fmt1(m.kgHora)} kg/h</div>
         </div>
         <div class="ri-pct mono" style="${colorPct}">${fmtPct(m.pctDesperdicio)}</div>
@@ -870,14 +1001,16 @@ async function cargarHistorial(){
   const productoId = document.getElementById('h-producto').value;
   const operarioId = document.getElementById('h-operario').value;
   const proveedorId = document.getElementById('h-proveedor').value;
+  const maquinaId = document.getElementById('h-maquina').value;
 
   let query = sb.from('registros_procesamiento')
-    .select('*, productos_procesamiento(nombre), operarios_procesamiento(nombre), proveedores_procesamiento(nombre)')
+    .select('*, productos_procesamiento(nombre), operarios_procesamiento(nombre), proveedores_procesamiento(nombre), maquinaria_procesamiento(nombre)')
     .gte('fecha', desde).lte('fecha', hasta)
     .order('fecha').order('hora_inicio');
   if (productoId) query = query.eq('producto_id', productoId);
   if (operarioId) query = query.eq('operario_id', operarioId);
   if (proveedorId) query = query.eq('proveedor_id', proveedorId);
+  if (maquinaId) query = query.eq('maquina_id', maquinaId);
 
   const { data, error } = await query;
   if (error){ console.error(error); return; }
@@ -942,7 +1075,7 @@ function renderReporte(rows, desde, hasta, productoId){
   const pctTotal = sumIngreso>0 ? ((sumIngreso-sumEgreso)/sumIngreso)*100 : 0;
   const kgHoraProm = sumHoras>0 ? sumEgreso/sumHoras : 0;
   foot.innerHTML = `<tr>
-    <td class="txt" colspan="4">Totales / promedio</td>
+    <td class="txt" colspan="5">Totales / promedio</td>
     <td>${fmtDuracion(sumHoras)}</td>
     <td>${fmt1(sumIngreso)}</td>
     <td>${fmt1(sumEgreso)}</td>
@@ -957,11 +1090,13 @@ function filaVista(r){
   const nombreProd = r.productos_procesamiento ? r.productos_procesamiento.nombre : '—';
   const nombreOp = r.operarios_procesamiento ? r.operarios_procesamiento.nombre : '—';
   const nombreProv = r.proveedores_procesamiento ? r.proveedores_procesamiento.nombre : '—';
+  const nombreMaq = r.maquinaria_procesamiento ? r.maquinaria_procesamiento.nombre : '—';
   return `<tr>
     <td class="txt">${r.fecha}</td>
     <td class="txt">${nombreProd}</td>
     <td class="txt">${nombreProv}</td>
     <td class="txt">${nombreOp}</td>
+    <td class="txt">${nombreMaq}</td>
     <td>${fmtDuracion(m.horas)}</td>
     <td>${fmt1(r.kg_ingreso)}</td>
     <td>${fmt1(r.kg_egreso)}</td>
@@ -978,11 +1113,13 @@ function filaEdicion(r){
   const opcionesProd = productos.map(p=>`<option value="${p.id}" ${p.id===r.producto_id?'selected':''}>${p.nombre}</option>`).join('');
   const opcionesOp = operarios.map(o=>`<option value="${o.id}" ${o.id===r.operario_id?'selected':''}>${o.nombre}</option>`).join('');
   const opcionesProv = proveedores.map(p=>`<option value="${p.id}" ${p.id===r.proveedor_id?'selected':''}>${p.nombre}</option>`).join('');
+  const opcionesMaq = maquinaria.map(m=>`<option value="${m.id}" ${m.id===r.maquina_id?'selected':''}>${m.nombre}</option>`).join('');
   return `<tr>
     <td class="txt"><input type="date" id="e-fecha-${r.id}" value="${r.fecha}"></td>
     <td class="txt"><select id="e-producto-${r.id}">${opcionesProd}</select></td>
     <td class="txt"><select id="e-proveedor-${r.id}">${opcionesProv}</select></td>
     <td class="txt"><select id="e-operario-${r.id}">${opcionesOp}</select></td>
+    <td class="txt"><select id="e-maquina-${r.id}">${opcionesMaq}</select></td>
     <td>
       <input type="time" id="e-hi-${r.id}" value="${r.hora_inicio.slice(0,5)}" style="margin-bottom:4px;">
       <input type="time" id="e-hf-${r.id}" value="${r.hora_fin.slice(0,5)}">
@@ -1012,6 +1149,7 @@ async function guardarEdicion(id){
   const producto_id = document.getElementById('e-producto-'+id).value;
   const operario_id = document.getElementById('e-operario-'+id).value;
   const proveedor_id = document.getElementById('e-proveedor-'+id).value;
+  const maquina_id = document.getElementById('e-maquina-'+id).value;
   const fecha = document.getElementById('e-fecha-'+id).value;
   const hora_inicio = document.getElementById('e-hi-'+id).value;
   const hora_fin = document.getElementById('e-hf-'+id).value;
@@ -1023,7 +1161,7 @@ async function guardarEdicion(id){
   if (kg_egreso > kg_ingreso){ showToast('El kg de egreso no puede superar al de ingreso'); return; }
 
   const { error } = await sb.from('registros_procesamiento').update({
-    producto_id, operario_id, proveedor_id, fecha, hora_inicio, hora_fin, kg_ingreso, kg_egreso
+    producto_id, operario_id, proveedor_id, maquina_id: maquina_id || null, fecha, hora_inicio, hora_fin, kg_ingreso, kg_egreso
   }).eq('id', id);
   if (error){ console.error(error); showToast('Error al guardar los cambios'); return; }
 
@@ -1138,6 +1276,7 @@ if (sb){
   loadProductos();
   loadOperarios();
   loadProveedores();
+  loadMaquinaria();
   cargarRegistrosHoy();
 }
 </script>
